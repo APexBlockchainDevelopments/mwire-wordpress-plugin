@@ -18,8 +18,11 @@ class eGiftCertificate_Updater
     private $pluginData; // plugin data
     private $username = 'APexBlockchainDevelopments'; // GitHub username
     private $repo = 'mwire-wordpress-plugin'; // GitHub repo name
-    private $pluginFile; // __FILE__ of our plugin
-    private $githubAPIResult; // holds data from GitHub
+    private $pluginFile;
+    private $githubAPIResult;
+
+    // 🔐 Hardcoded token for internal use
+    private $token = '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';
 
     public function __construct($pluginFile)
     {
@@ -38,32 +41,26 @@ class eGiftCertificate_Updater
     /**
      * Get information regarding our plugin from GitHub
      */
-    private function getRepoReleaseInfo()
-    {
-        // Only do this once
+    private function getRepoReleaseInfo() {
         if (!empty($this->githubAPIResult)) {
             return;
         }
 
-        $preRelease = get_option('_egiftCerti_prerelease', 'no');
-        $preRelease = $preRelease === 'yes' ? true : false;
-
-        // Query the GitHub API
         $url = "https://api.github.com/repos/{$this->username}/{$this->repo}/releases/latest";
 
-        $response = wp_remote_get($url, ['timeout' => 60]);
+        $response = wp_remote_get($url, [
+            'timeout' => 60,
+            'headers' => [
+                'Authorization' => 'token ' . $this->token,
+                'User-Agent'    => 'WordPress/' . get_bloginfo('version'),
+            ],
+        ]);
 
-        if ($response instanceof \WP_Error) {
-            return $response;
+        if (is_wp_error($response)) {
+            return;
         }
 
-        $release = @json_decode(isset($response['body']) ? $response['body'] : null);
-        if ($preRelease && count($release)) {
-            $release = $release[0];
-        }
-
-        // Get the results
-        $this->githubAPIResult = $release;
+        $this->githubAPIResult = json_decode(wp_remote_retrieve_body($response));
     }
 
     /**
@@ -73,27 +70,20 @@ class eGiftCertificate_Updater
      *
      * @return mixed
      */
-    public function setTransient($transient)
-    {
-        // Get plugin & GitHub release information
+    public function setTransient($transient) {
         $this->initPluginData();
         $this->getRepoReleaseInfo();
 
-        // Check the versions if we need to do an update
-        $version = isset($this->pluginData['Version']) ? $this->pluginData['Version'] : '';
-        $releaseVersion = preg_replace('/^v/', null, $this->githubAPIResult->tag_name);
+        if (!isset($this->githubAPIResult->tag_name)) return $transient;
+
+        $version = $this->pluginData['Version'];
+        $releaseVersion = ltrim($this->githubAPIResult->tag_name, 'v');
         $doUpdate = version_compare($releaseVersion, $version);
 
-        // Update the transient to include our updated plugin data
         if ($doUpdate === 1) {
-            // Release download zip file
-            $package = null;
-            if ($this->githubAPIResult->assets) {
-                $asset = current($this->githubAPIResult->assets);
-                $package = $asset->browser_download_url;
-            }
+            $package = $this->githubAPIResult->zipball_url . '?access_token=' . $this->token;
 
-            $obj = new \stdClass();
+            $obj = new stdClass();
             $obj->slug = $this->slug;
             $obj->new_version = $releaseVersion;
             $obj->url = $this->pluginData["PluginURI"];
@@ -103,7 +93,6 @@ class eGiftCertificate_Updater
             unset($transient->response[$this->slug]);
         }
 
-        // code here
         return $transient;
     }
 
@@ -121,78 +110,18 @@ class eGiftCertificate_Updater
         $this->initPluginData();
         $this->getRepoReleaseInfo();
 
-        // If nothing is found, do nothing
         if (empty($response->slug) || $response->slug !== $this->slug) {
             return false;
         }
 
-        // Add our plugin information
         $response->last_updated = $this->githubAPIResult->published_at;
-        $response->slug = $this->slug;
-        $response->plugin_name = $this->pluginData["Name"];
-        $response->version = $this->pluginData["Version"];
-        $response->author = $this->pluginData["AuthorName"];
-        $response->homepage = $this->pluginData["PluginURI"];
-        $response->requires_php = $this->pluginData["RequiresPHP"];
-        $response->banners = [
-            'high' => "https://raw.githubusercontent.com/{$this->username}/{$this->repo}/master/egift.png",
-            'low' => "https://raw.githubusercontent.com/{$this->username}/{$this->repo}/master/egift.png",
-        ];
-
-        // Release download zip file
-        if ($this->githubAPIResult->assets) {
-            $asset = current($this->githubAPIResult->assets);
-            $response->download_link = $asset->browser_download_url;
-        }
-
-        $parsedown = new eGiftCertificate_Parsedown();
-        $readmeResponse = wp_remote_get("https://raw.githubusercontent.com/{$this->username}/{$this->repo}/master/README.md", ['timeout' => 60]);
-        $changeLogResponse = wp_remote_get("https://raw.githubusercontent.com/{$this->username}/{$this->repo}/master/CHANGELOG.md", ['timeout' => 60]);
-
-        $description = $this->pluginData["Description"];
-        if (isset($readmeResponse['body'])) {
-            // remove image
-            $description = $readmeResponse['body'];
-            $description = preg_replace('/!\[eGiftCertificate\]\([^)]+\)/', null, $description);
-            $description = preg_replace('/##\s+/', '###', $description);
-            $description = $parsedown->parse($description);
-        }
-
-        $changeLog = null;
-        if (isset($changeLogResponse['body'])) {
-            $changeLog = preg_replace('/##\s+/', '###', $changeLogResponse['body']);
-            $changeLog = $parsedown->parse($changeLog);
-        }
-
-        // Create tabs in the lightbox
-        $response->sections = [
-            'description' => $description,
-            'changelog' => $changeLog,
-        ];
-
-        array_filter($response->sections);
-
-        // Gets the required version of WP if available
-        $matches = null;
-        preg_match("/requires:\s([\d\.]+)/i", $this->githubAPIResult->body, $matches);
-        if (!empty($matches)) {
-            if (is_array($matches)) {
-                if (count($matches) > 1) {
-                    $response->requires = $matches[1];
-                }
-            }
-        }
-
-        // Gets the tested version of WP if available
-        $matches = null;
-        preg_match("/tested:\s([\d\.]+)/i", $this->githubAPIResult->body, $matches);
-        if (!empty($matches)) {
-            if (is_array($matches)) {
-                if (count($matches) > 1) {
-                    $response->tested = $matches[1];
-                }
-            }
-        }
+        $response->slug         = $this->slug;
+        $response->plugin_name  = $this->pluginData['Name'];
+        $response->version      = $this->pluginData['Version'];
+        $response->author       = $this->pluginData['AuthorName'];
+        $response->homepage     = $this->pluginData['PluginURI'];
+        $response->requires_php = $this->pluginData['RequiresPHP'];
+        $response->download_link = $this->githubAPIResult->zipball_url . '?access_token=' . $this->token;
 
         return $response;
     }
@@ -206,21 +135,16 @@ class eGiftCertificate_Updater
      *
      * @return mixed
      */
-    public function postInstall($true, $hook_extra, $result)
-    {
-        // Get plugin information
+    
+    public function postInstall($true, $hook_extra, $result) {
         $this->initPluginData();
 
-        // Remember if our plugin was previously activated
         $wasActivated = is_plugin_active($this->slug);
 
-        // Re-activate plugin if needed
         if ($wasActivated) {
             activate_plugin($this->slug);
         }
 
-        // code here
         return $result;
     }
 }
-
