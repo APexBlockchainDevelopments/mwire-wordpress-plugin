@@ -6,7 +6,7 @@
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / APex / mwire Development Team
  * @package   mwire-crypto-payments
- * @version   1.0.x
+ * @version   1.0.3
  */
 
 class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
