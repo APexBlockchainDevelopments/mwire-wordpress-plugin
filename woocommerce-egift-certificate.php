@@ -6,7 +6,7 @@
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / APex / mwire Development Team
  * @package   mwire-crypto-payments
- * @version   0.0.1
+ * @version   0.0.2
  */
 
 /**
