@@ -3,23 +3,12 @@
  *  LICENSE: This file is subject to the terms and conditions defined in
  *  file 'LICENSE', which is part of this source code package.
  *
- * @copyright 2014 Copyright(c) - All rights reserved.
+ * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / APex / mwire Development Team
  * @package   mwire-crypto-payments
- * @version   0.0.2
+ * @version   1.0.x
  */
 
-/**
- * Plugin Name: mwire-crypto-payments
- * Plugin URI: https://www.mwire.co
- * Description: Transfer Crypto with a Credit or Debit card to pay for goods or services.
- * Version: 0.0.1
- * Author: Ausitn Patkos
- * Author URI: http://austinnpatkos.com
- * Requires PHP: 5.6
- * WC requires at least: 3.4
- * WC tested up to: 9.5
- **/
 class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 {
     const META_EGIFT_PIN = '_egift_pin';
