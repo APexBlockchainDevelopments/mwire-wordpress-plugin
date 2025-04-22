@@ -15,7 +15,7 @@ return [
     'enabled' => [
         'title' => __('Enable/Disable', 'woocommerce'),
         'type' => 'checkbox',
-        'label' => __('Enable eGiftCertificate', 'woocommerce'),
+        'label' => __('Enable mwire', 'woocommerce'),
         'default' => 'yes',
     ],
     'api_id' => [
@@ -33,13 +33,6 @@ return [
         'default' => '',
         'desc_tip' => true,
     ],
-    'qr_code' => [
-        'title' => __('Private Checkout (QR Code)', 'woocommerce'),
-        'type' => 'checkbox',
-        'description' => __('Show QR code to continue payment in the customer phone', 'woocommerce'),
-        'default' => '',
-        'desc_tip' => true,
-    ],
     'debug' => [
         'title' => __('Debug log', 'woocommerce'),
         'type' => 'checkbox',
@@ -47,4 +40,13 @@ return [
         'default' => 'no',
         'description' => sprintf(__('Log eGiftCertificate events, such as IPN requests, inside %s Note: this may log personal information. We recommend using this for debugging purposes only and deleting the logs when finished.', 'woocommerce'), '<code>'.WC_Log_Handler_File::get_log_file_path('egift-certificate').'</code>'),
     ],
+    'merchant_id' => [
+        'title' => __('Merchant ID', 'woocommerce'),
+        'type' => 'text',
+        'description' => __('Enter or copy your merchant ID.', 'woocommerce'),
+        'default' => '',
+        'desc_tip' => true,
+    ],
+
+
 ];

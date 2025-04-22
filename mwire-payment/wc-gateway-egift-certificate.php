@@ -65,8 +65,8 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         $this->id                 = 'egift-certificate';
         $this->has_fields         = true;
         $this->order_button_text  = __('continue', 'woocommerce');
-        $this->method_title       = __('MAX REDEMPTION', 'woocommerce');
-        $this->method_description = __('Use MAX REDEMPTION to interchange for goods', 'woocommerce');
+        $this->method_title       = __('mwire', 'woocommerce');
+        $this->method_description = __('Use mwire to interchange for goods', 'woocommerce');
         $this->supports           = [
             'products',
         ];
@@ -91,8 +91,8 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         // Define user set variables.
         if (empty($this->description)) {
             $this->description = <<<HTML
-You will be redirected to a secure third-party service where you can purchase crypto and then send as payment.;
-HTML;
+        You will be redirected to a secure third-party service where you can purchase crypto and then send as payment.;
+        HTML;
         }
 
         $this->debug  = 'yes' === $this->get_option('debug', 'no');
@@ -110,15 +110,15 @@ HTML;
                 $pin = $order->get_meta(self::META_EGIFT_PIN);
                 if ($pin) {
                     echo <<<HTML
-<tr>
-<th scope="row">
-eGift Certificate
-</th>
-<td>
-<b style="font-size: 120%; color: brown">$pin<b>
-</td>
-</tr>
-HTML;
+        <tr>
+        <th scope="row">
+        eGift Certificate
+        </th>
+        <td>
+        <b style="font-size: 120%; color: brown">$pin<b>
+        </td>
+        </tr>
+        HTML;
                 }
 
             }
@@ -152,7 +152,7 @@ HTML;
      *
      * @return array
      */
-        public function process_payment($order_id)
+    public function process_payment($order_id)  //Do we need this? Get rid of this function since it will be done async?
     {
         /** @var WC_Order $order */
         $order = wc_get_order($order_id);
@@ -177,6 +177,7 @@ HTML;
             'userId'     => $order->get_billing_email(), // You can modify this as needed
             'receiverId' => get_option('admin_email'), // or some custom field
             'amount'     => intval($order->get_total()), // e.g., convert $25.00 to 2500
+            'orderId' => $order_id
         ];
     
         // ✅ Send POST request
@@ -205,7 +206,7 @@ HTML;
     /**
      * After payment hook to render initialize the widget
      */
-    public function afterPayment()
+    public function afterPayment()//Do we need this? Get rid of this function since it will be done async?
     {
         global $wp;
 
@@ -218,18 +219,18 @@ HTML;
             $checkout = $order->get_checkout_payment_url();
 
             echo <<<HTML
-<script>
-const startEgiftCertificate = () => typeof eGiftCertificate === 'undefined' ?
-setTimeout(startEgiftCertificate, 100) : eGiftCertificate.onEvent(function(e){
-          switch (e.name) {
-            case 'CLOSE':
-                 window.location = '$checkout';
-                 break;
-          }
-}).start($params);
-startEgiftCertificate();
-</script>
-HTML;
+        <script>
+        const startEgiftCertificate = () => typeof eGiftCertificate === 'undefined' ?
+        setTimeout(startEgiftCertificate, 100) : eGiftCertificate.onEvent(function(e){
+                switch (e.name) {
+                    case 'CLOSE':
+                        window.location = '$checkout';
+                        break;
+                }
+        }).start($params);
+        startEgiftCertificate();
+        </script>
+        HTML;
         }
     }
 
@@ -237,20 +238,20 @@ HTML;
     public function processPaymentOnNewOrder(WC_Order $order)
     {
 
-	error_log('✅ processPaymentOnNewOrder was called');
-	$order->add_order_note('✅ Custom on-hold flow triggered.');
+        error_log('✅ processPaymentOnNewOrder was called');
+        $order->add_order_note('✅ Custom on-hold flow triggered.');
 
-            // Mark the order as on-hold (waiting for manual payment)
-    $order->update_status('on-hold', 'Please Check your email for further instructions.');
+                // Mark the order as on-hold (waiting for manual payment)
+        $order->update_status('on-hold', 'Please Check your email for further instructions.');
 
-    // Reduce stock levels
-    wc_reduce_stock_levels($order->get_id());
+        // Reduce stock levels
+        wc_reduce_stock_levels($order->get_id());
 
-    // Remove cart contents
-    WC()->cart->empty_cart();	
-        return [
-            'result'   => 'success',
-            'redirect' => $redirectUrl,
+        // Remove cart contents
+        WC()->cart->empty_cart();	
+            return [
+                'result'   => 'success',
+                'redirect' => $redirectUrl,
         ];
     }
 
@@ -302,53 +303,53 @@ HTML;
         }
 
         $mutation = <<<GraphQL
-mutation (\$pin: String!){
-  pins {
-    redeem(input: {pin: \$pin})
-  }
-}
-GraphQL;
-
-        $egiftGateway = new WC_Gateway_EGift_Certificate();
-
-        $token = eGiftCertificate_JWT::encode(
-            [
-                'jti'    => wp_generate_uuid4(),
-                'iss'    => $egiftGateway->get_option('api_id'),
-                'iat'    => (new DateTime('-2minutes'))->getTimestamp(),
-                'exp'    => (new DateTime('+4hours'))->getTimestamp(),
-                'ip'     => get_the_user_ip(),
-                'agent'  => wc_get_user_agent(),
-                'origin' => isset($_SERVER['HTTP_HOST']) ? wc_clean(wp_unslash($_SERVER['HTTP_HOST'])) : '',
-            ],
-            $egiftGateway->get_option('api_key')
-        );
-
-        $body     = json_encode(['query' => $mutation, 'variables' => ['pin' => $pin]]);
-        $response = wp_remote_post(
-            $this->apiUrl,
-            [
-                'headers' => [
-                    'Authorization' => sprintf('Bearer %s', $token),
-                ],
-                'body'    => $body,
-            ]
-        );
-
-        if (isset($response['body'])) {
-            $data = @json_decode($response['body'], true);
-            if (isset($data['data']['pins']['redeem']) && $data['data']['pins']['redeem']) {
-                // Remove cart
-                WC()->cart->empty_cart();
-
-                return [
-                    'result'   => 'success',
-                    'redirect' => $this->get_return_url($order),
-                ];
-            }
+        mutation (\$pin: String!){
+        pins {
+            redeem(input: {pin: \$pin})
         }
+        }
+    GraphQL;
 
-        return [];
+            $egiftGateway = new WC_Gateway_EGift_Certificate();
+
+            $token = eGiftCertificate_JWT::encode(
+                [
+                    'jti'    => wp_generate_uuid4(),
+                    'iss'    => $egiftGateway->get_option('api_id'),
+                    'iat'    => (new DateTime('-2minutes'))->getTimestamp(),
+                    'exp'    => (new DateTime('+4hours'))->getTimestamp(),
+                    'ip'     => get_the_user_ip(),
+                    'agent'  => wc_get_user_agent(),
+                    'origin' => isset($_SERVER['HTTP_HOST']) ? wc_clean(wp_unslash($_SERVER['HTTP_HOST'])) : '',
+                ],
+                $egiftGateway->get_option('api_key')
+            );
+
+            $body     = json_encode(['query' => $mutation, 'variables' => ['pin' => $pin]]);
+            $response = wp_remote_post(
+                $this->apiUrl,
+                [
+                    'headers' => [
+                        'Authorization' => sprintf('Bearer %s', $token),
+                    ],
+                    'body'    => $body,
+                ]
+            );
+
+            if (isset($response['body'])) {
+                $data = @json_decode($response['body'], true);
+                if (isset($data['data']['pins']['redeem']) && $data['data']['pins']['redeem']) {
+                    // Remove cart
+                    WC()->cart->empty_cart();
+
+                    return [
+                        'result'   => 'success',
+                        'redirect' => $this->get_return_url($order),
+                    ];
+                }
+            }
+
+            return [];
     }
 
     public function ipnHandler()
@@ -449,22 +450,22 @@ GraphQL;
         $autoRedeem = null;
         if ($this->get_option('auto_redeem') === 'yes') {
             $autoRedeem = <<<HTML
-<script>
-window.addEventListener('load', function(){
-    document.getElementById("place_order").click();
-})
-</script>
-HTML;
+        <script>
+        window.addEventListener('load', function(){
+            document.getElementById("place_order").click();
+        })
+        </script>
+        HTML;
 
         }
 
         $description = null;
         if ($description = $this->get_option('description_redeem_v2')) {
             $description = <<<HTML
-<p>
-$description
-</p>
-HTML;
+        <p>
+        $description
+        </p>
+        HTML;
 
         }
 
@@ -477,8 +478,8 @@ HTML;
 			    '.$autoRedeem.'
 			    '.$description.'
 			    <script>
-    document.getElementById("payment_method_egift-certificate").click();
-</script>
+            document.getElementById("payment_method_egift-certificate").click();
+        </script>
 			</p>',
         ];
 
@@ -515,3 +516,42 @@ HTML;
         }
     }
 }
+
+
+add_action('woocommerce_before_main_content', 'mwire_custom_top_thankyou_notice', 5);
+
+function mwire_custom_top_thankyou_notice() {
+    if (!is_order_received_page()) return;
+
+    $order_id = absint(get_query_var('order-received'));
+    if (!$order_id) return;
+
+    $order = wc_get_order($order_id);
+    if (!$order || $order->get_payment_method() !== 'egift-certificate') return;
+
+    echo '<div class="woocommerce-notice woocommerce-info" style="font-size: 1.15em; background: #fff3cd; border-left: 4px solid #ffeeba; padding: 16px; margin: 20px 0;">
+        ⚠️ <strong>Your order is not yet complete.</strong><br>
+        Please check your email inbox for further instructions to complete your payment.
+    </div>';
+}
+
+
+add_action('template_redirect', 'mwire_top_notice_render');
+
+function mwire_top_notice_render() {
+    if (!is_order_received_page()) return;
+
+    $order_id = absint(get_query_var('order-received'));
+    if (!$order_id) return;
+
+    $order = wc_get_order($order_id);
+    if (!$order || $order->get_payment_method() !== 'egift-certificate') return;
+
+    add_action('wp_body_open', function () {
+        echo '<div class="woocommerce-notice woocommerce-info" style="font-size: 1.15em; background: #fff3cd; border-left: 4px solid #ffeeba; padding: 16px; margin: 20px;">
+            ⚠️ <strong>Your order is not yet complete.</strong><br>
+            Please check your email inbox for further instructions to complete your payment.
+        </div>';
+    }, 0);
+}
+
