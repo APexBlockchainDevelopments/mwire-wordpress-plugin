@@ -44,23 +44,26 @@ class eGiftCertificate_Updater
 
         if (!isset($this->githubAPIResult->tag_name)) return $transient;
 
-        $currentVersion = $this->pluginData['Version'];
-        $latestVersion = ltrim($this->githubAPIResult->tag_name, 'v');
+        $version = $this->pluginData['Version'];
+        $releaseVersion = ltrim($this->githubAPIResult->tag_name, 'v');
+        $doUpdate = version_compare($releaseVersion, $version, '>');
 
-        if (version_compare($latestVersion, $currentVersion, '>')) {
+        if ($doUpdate) {
+            // Look for the uploaded mwire-payment.zip
             $package = null;
-
-            foreach ($this->githubAPIResult->assets as $asset) {
-                if ($asset->name === 'mwire-payment.zip') {
-                    $package = $asset->browser_download_url;
-                    break;
+            if (!empty($this->githubAPIResult->assets)) {
+                foreach ($this->githubAPIResult->assets as $asset) {
+                    if (strpos($asset->name, 'mwire-payment') !== false) {
+                        $package = $asset->browser_download_url;
+                        break;
+                    }
                 }
             }
 
             if ($package) {
                 $obj = new stdClass();
                 $obj->slug = $this->slug;
-                $obj->new_version = $latestVersion;
+                $obj->new_version = $releaseVersion;
                 $obj->url = $this->pluginData["PluginURI"];
                 $obj->package = $package;
                 $transient->response[$this->slug] = $obj;
@@ -70,38 +73,36 @@ class eGiftCertificate_Updater
         return $transient;
     }
 
-    public function setPluginInfo($false, $action, $response)
-    {
+    public function setPluginInfo($false, $action, $response) {
         $this->initPluginData();
         $this->getRepoReleaseInfo();
 
         if (empty($response->slug) || $response->slug !== $this->slug) return false;
 
-        $downloadLink = null;
-        foreach ($this->githubAPIResult->assets as $asset) {
-            if ($asset->name === 'mwire-payment.zip') {
-                $downloadLink = $asset->browser_download_url;
-                break;
-            }
-        }
-
-        if (!$downloadLink) return false;
-
         $response->last_updated = $this->githubAPIResult->published_at;
         $response->slug = $this->slug;
-        $response->plugin_name = $this->pluginData['Name'];
+        $response->plugin_name = $this->pluginData["Name"];
         $response->version = ltrim($this->githubAPIResult->tag_name, 'v');
-        $response->author = $this->pluginData['AuthorName'];
-        $response->homepage = $this->pluginData['PluginURI'];
-        $response->requires_php = $this->pluginData['RequiresPHP'];
-        $response->download_link = $downloadLink;
+        $response->author = $this->pluginData["AuthorName"];
+        $response->homepage = $this->pluginData["PluginURI"];
+        $response->requires_php = $this->pluginData["RequiresPHP"];
+
+        // Again, locate the mwire-payment.zip
+        if (!empty($this->githubAPIResult->assets)) {
+            foreach ($this->githubAPIResult->assets as $asset) {
+                if (strpos($asset->name, 'mwire-payment') !== false) {
+                    $response->download_link = $asset->browser_download_url;
+                    break;
+                }
+            }
+        }
 
         return $response;
     }
 
-    public function postInstall($true, $hook_extra, $result)
-    {
+    public function postInstall($true, $hook_extra, $result) {
         $this->initPluginData();
+
         $wasActivated = is_plugin_active($this->slug);
 
         if ($wasActivated) {
