@@ -5,15 +5,15 @@
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / APex / mwire Development Team
- * @package   mwire-crypto-payments
- * @version   1.0.3
+ * @package   mwire
+ * @version   1.0.4
  */
 
 /**
- * Plugin Name: mwire-crypto-payments
+ * Plugin Name: mwire
  * Plugin URI: https://www.mwire.co
  * Description: Transfer Crypto with a Credit or Debit card to pay for goods or services.
- * Version: 0.0.1
+ * Version: 1.0.4
  * Author: Ausitn Patkos
  * Author URI: http://austinnpatkos.com
  * Requires PHP: 5.6
@@ -188,5 +188,3 @@ HTML;
         }
     }
 );
-
-

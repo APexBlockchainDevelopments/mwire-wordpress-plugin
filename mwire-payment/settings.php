@@ -5,8 +5,8 @@
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / APex / mwire Development Team
- * @package   mwire-crypto-payments
- * @version   1.0.3
+ * @package   mwire
+ * @version   1.0.4
  */
 
 defined('ABSPATH') || exit;

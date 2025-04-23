@@ -18,7 +18,7 @@ final class WC_Gateway_EGift_Certificate_Blocks extends AbstractPaymentMethodTyp
 
     public function get_payment_method_script_handles() {
 
-            error_log('í³¦ get_payment_method_script_handles called');
+            error_log('ï¿½ï¿½ï¿½ get_payment_method_script_handles called');
 
     wp_register_script(
         'egift-certificate-blocks-integration',

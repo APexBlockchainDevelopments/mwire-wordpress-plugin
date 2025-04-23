@@ -1,3 +1,6 @@
+## 1.0.4 [2020-04-23]
+- Updated Name of Plugin to just 'mwire'
+
 ## 0.0.2 [2020-04-12]
 
 - Fixed Updater Script

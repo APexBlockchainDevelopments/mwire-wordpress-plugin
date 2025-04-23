@@ -5,8 +5,8 @@
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / APex / mwire Development Team
- * @package   mwire-crypto-payments
- * @version   1.0.3
+ * @package   mwire
+ * @version   1.0.4
  */
 
 class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
@@ -177,7 +177,8 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
             'userId'     => $order->get_billing_email(), // You can modify this as needed
             'receiverId' => get_option('admin_email'), // or some custom field
             'amount'     => intval($order->get_total()), // e.g., convert $25.00 to 2500
-            'orderId' => $order_id
+            'orderId' => $order_id,
+            'merchantId' => $this->get_option('merchant_id'), // ✅ Added line
         ];
     
         // ✅ Send POST request
@@ -554,4 +555,3 @@ function mwire_top_notice_render() {
         </div>';
     }, 0);
 }
-
