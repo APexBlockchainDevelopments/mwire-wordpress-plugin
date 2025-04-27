@@ -18,8 +18,6 @@ final class WC_Gateway_EGift_Certificate_Blocks extends AbstractPaymentMethodTyp
 
     public function get_payment_method_script_handles() {
 
-            error_log('��� get_payment_method_script_handles called');
-
     wp_register_script(
         'egift-certificate-blocks-integration',
         plugin_dir_url(__FILE__) . 'checkout.js',
@@ -39,7 +37,6 @@ final class WC_Gateway_EGift_Certificate_Blocks extends AbstractPaymentMethodTyp
     }
 
     public function get_payment_method_data() {
-	 error_log('✅ get_payment_method_data called');
         return [
             'title' => $this->gateway->title,
             'description' => $this->gateway->description, // ✅ Add this line

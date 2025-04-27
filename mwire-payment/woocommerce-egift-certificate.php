@@ -4,17 +4,17 @@
  *  file 'LICENSE', which is part of this source code package.
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
- * @author    Austin Patkos / APex / mwire Development Team
+ * @author    Austin Patkos / mwire Development Team
  * @package   mwire
- * @version   1.0.4
+ * @version   1.0.6
  */
 
 /**
  * Plugin Name: mwire
  * Plugin URI: https://www.mwire.co
- * Description: Transfer Crypto with a Credit or Debit card to pay for goods or services.
- * Version: 1.0.4
- * Author: Ausitn Patkos
+ * Description: Transfer Crypto with a Debit card to pay for goods or services.
+ * Version: 1.0.6
+ * Author: Austin Patkos
  * Author URI: http://austinnpatkos.com
  * Requires PHP: 5.6
  * WC requires at least: 3.4
@@ -24,6 +24,12 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
+if (is_admin()) {
+    require_once __DIR__ . '/classes/class-mwire-admin-handler.php';
+    new MWire_Admin_Handler();
+}
+
 
 function getVersion()
 {
@@ -171,18 +177,15 @@ HTML;
         function oawoo_register_order_approval_payment_method_type() {
             // Check if the required class exists
             if ( ! class_exists( 'Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType' ) ) {
-		error_log('��� AbstractPaymentMethodType not found');
                 return;
             }
             // Include the custom Blocks Checkout class
             require_once plugin_dir_path(__FILE__) . 'wc-gateway-class-block.php';
-            error_log('✅ wc-gateway-class-block.php loaded');
 	    // Hook the registration function to the 'woocommerce_blocks_payment_method_type_registration' action
             add_action(
                 'woocommerce_blocks_payment_method_type_registration',
                  function ($payment_method_registry) {
             	 $payment_method_registry->register(new WC_Gateway_EGift_Certificate_Blocks);
-            	 error_log('✅ Registered WC_Gateway_EGift_Certificate_Blocks');
         	}
             );
         }

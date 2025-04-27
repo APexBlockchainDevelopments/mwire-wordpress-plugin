@@ -4,9 +4,9 @@
  *  file 'LICENSE', which is part of this source code package.
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
- * @author    Austin Patkos / APex / mwire Development Team
+ * @author    Austin Patkos / mwire Development Team
  * @package   mwire
- * @version   1.0.4
+ * @version   1.0.5
  */
 
 defined('ABSPATH') || exit;
@@ -17,14 +17,6 @@ return [
         'type' => 'checkbox',
         'label' => __('Enable mwire', 'woocommerce'),
         'default' => 'yes',
-    ],
-    'api_id' => [
-        'title' => __('API ID', 'woocommerce'),
-        'type' => 'text',
-        'description' => __('Get your API credentials from mwire.co.', 'woocommerce'),
-        'default' => '',
-        'required'=> true,
-        'desc_tip' => true,
     ],
     'debug' => [
         'title' => __('Debug log', 'woocommerce'),

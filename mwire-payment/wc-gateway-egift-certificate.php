@@ -1,13 +1,16 @@
 <?php
+
 /**
  *  LICENSE: This file is subject to the terms and conditions defined in
  *  file 'LICENSE', which is part of this source code package.
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
- * @author    Austin Patkos / APex / mwire Development Team
+ * @author    Austin Patkos / mwire Development Team
  * @package   mwire
- * @version   1.0.4
+ * @version   1.0.6
  */
+
+
 
 class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 {
@@ -87,7 +90,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         $this->init_form_fields();
         $this->init_settings();
 
-        $this->title = "Credit/Debit via USDC";
+        $this->title = "Debit Card via USDC";
         // Define user set variables.
         if (empty($this->description)) {
             $this->description = <<<HTML
@@ -96,12 +99,12 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         }
 
         $this->debug  = 'yes' === $this->get_option('debug', 'no');
-        $this->apiID  = $this->get_option('api_id');
+        $this->apiID  = 'test'; //Just a test while remove it from the settings;
         $this->apiKey = $this->get_option('api_key');
 
         self::$log_enabled = $this->debug;
 
-        add_action('woocommerce_update_options_payment_gateways_'.$this->id, [$this, 'process_admin_options']);
+        add_action('woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'process_admin_options']);
         add_action('woocommerce_api_egift-ipn', [$this, 'ipnHandler']);
 
         add_filter(
@@ -120,7 +123,6 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         </tr>
         HTML;
                 }
-
             }
         );
     }
@@ -145,6 +147,63 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         return $saved;
     }
 
+    public function admin_options()
+    {
+        parent::admin_options();
+
+        $wallet = 'No wallet assigned yet.';
+
+        $merchant_id = $this->get_option('merchant_id');
+        $api_key = $this->get_option('api_key');
+
+        if ($merchant_id && $api_key) {
+            $response = wp_remote_post('https://api.mwire.co/prod/return-merchant-wallet-address', [
+                'method'    => 'POST',
+                'headers'   => [
+                    'Content-Type' => 'application/json',
+                ],
+                'body'      => json_encode([
+                    'merchant_id' => $merchant_id,
+                    'api_key'     => $api_key,
+                ]),
+                'timeout'   => 15,
+            ]);
+
+            if (!is_wp_error($response)) {
+                $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+                if (isset($body['body'])) {
+                    $inner_body = json_decode($body['body'], true);
+        
+                    if (isset($inner_body['wallet'])) {
+                        $wallet = $inner_body['wallet'];
+                    } else {
+                        error_log('❌ Wallet address missing in inner response. Body: ' . print_r($inner_body, true));
+                    }
+                } else {
+                    error_log('❌ Wallet address missing in outer response. Body: ' . print_r($body, true));
+                }
+            } else {
+                error_log('❌ Failed to reach wallet API: ' . $response->get_error_message());
+            }
+        } else {
+            error_log('❌ Missing merchant_id or api_key in settings.');
+        }
+
+        echo '<h2>Wallet Address</h2>';
+        echo '<table class="form-table">';
+        echo '<tr valign="top">
+                <th scope="row">Assigned Wallet</th>
+                <td>
+                    <p style="font-family:monospace; background: #f9f9f9; padding:10px; border:1px solid #ccc;">'
+            . esc_html($wallet) .
+            '</p>
+                    <p class="description">This wallet is assigned by mwire. If you need changes, contact info@mwire.co</p>
+                </td>
+              </tr>';
+        echo '</table>';
+    }
+
     /**
      * Process the payment and return the result.
      *
@@ -156,83 +215,51 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
     {
         /** @var WC_Order $order */
         $order = wc_get_order($order_id);
-    
-        // If a PIN already exists, skip external redemption logic
-        if ($order->get_meta(self::META_EGIFT_PIN)) {
-            $pin = $this->get_post_data()['egift-certificate-pin'] ?? null;
-    
-            if ($pin === $order->get_meta(self::META_EGIFT_PIN)) {
-                return $this->redeemPurchasedPin($order);
-            }
-    
-            wc_add_notice('Invalid eGiftCertificate, try again with a valid PIN.', 'error');
-    
-            return [
-                'result' => 'failure',
-            ];
-        }
-    
+
         // ✅ Create POST payload
         $payload = [
             'userId'     => $order->get_billing_email(), // You can modify this as needed
             'receiverId' => get_option('admin_email'), // or some custom field
             'amount'     => intval($order->get_total()), // e.g., convert $25.00 to 2500
             'orderId' => $order_id,
-            'merchantId' => $this->get_option('merchant_id'), // ✅ Added line
+            'merchantId' => $this->get_option('merchant_id'),
+            'apiKey'     => $this->get_option('api_key'), // <-- NEW: add api_key here
         ];
-    
+
         // ✅ Send POST request
-        $response = wp_remote_post('https://api.mwire.co/prod/create-new-agreement', [
+        $response = wp_remote_post('https://api.mwire.co/prod/create-new-agreement-from-merchant', [
             'method'  => 'POST',
             'headers' => ['Content-Type' => 'application/json'],
             'body'    => json_encode($payload),
             'timeout' => 15,
         ]);
-    
+
         if (is_wp_error($response)) {
             wc_add_notice('Could not initiate payment agreement. Please try again later.', 'error');
             return ['result' => 'failure'];
         }
-    
-            // Set order to on-hold status (so inventory is reserved)
-    	$order->update_status('on-hold', 'Awaiting crypto payment processing');
-    
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (isset($body['statusCode']) && $body['statusCode'] === 201) {
+            // ✅ Success
+            error_log('✅ Agreement created successfully');
+        } else {
+            // ❌ Failed
+            error_log('API call failed. Full body: ' . print_r($body, true));
+            wc_add_notice('There was an issue processing your payment. Please contact support.', 'error');
+            return [
+                'result' => 'failure',
+            ];
+        }
+
+        // Set order to on-hold status (so inventory is reserved)
+        $order->update_status('on-hold', 'Awaiting crypto payment processing');
+
         return [
             'result'   => 'success',
             'redirect' => $this->get_return_url($order),
         ];
-    }
-    
-
-    /**
-     * After payment hook to render initialize the widget
-     */
-    public function afterPayment()//Do we need this? Get rid of this function since it will be done async?
-    {
-        global $wp;
-
-        /** @var WC_Order $order */
-        $order = wc_get_order($wp->query_vars['order-pay']);
-
-        if ($order->get_payment_method() === $this->id && ! isset($_GET['pay_for_order'])) {
-            $params = json_encode($this->getParams($order));
-
-            $checkout = $order->get_checkout_payment_url();
-
-            echo <<<HTML
-        <script>
-        const startEgiftCertificate = () => typeof eGiftCertificate === 'undefined' ?
-        setTimeout(startEgiftCertificate, 100) : eGiftCertificate.onEvent(function(e){
-                switch (e.name) {
-                    case 'CLOSE':
-                        window.location = '$checkout';
-                        break;
-                }
-        }).start($params);
-        startEgiftCertificate();
-        </script>
-        HTML;
-        }
     }
 
 
@@ -242,122 +269,25 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         error_log('✅ processPaymentOnNewOrder was called');
         $order->add_order_note('✅ Custom on-hold flow triggered.');
 
-                // Mark the order as on-hold (waiting for manual payment)
+        // Mark the order as on-hold (waiting for manual payment)
         $order->update_status('on-hold', 'Please Check your email for further instructions.');
 
         // Reduce stock levels
         wc_reduce_stock_levels($order->get_id());
 
         // Remove cart contents
-        WC()->cart->empty_cart();	
-            return [
-                'result'   => 'success',
-                'redirect' => $redirectUrl,
+        WC()->cart->empty_cart();
+        return [
+            'result'   => 'success',
+            'redirect' => $redirectUrl,
         ];
-    }
-
-    public function getParams(WC_Order $order)
-    {
-        $token = eGiftCertificate_JWT::encode(
-            [
-                'jti' => $order->get_id(),
-                'iss' => $this->apiID,
-                'iat' => (new DateTime('-2minutes'))->getTimestamp(),
-                'exp' => (new DateTime('+4hours'))->getTimestamp(),
-            ],
-            $this->apiKey
-        );
-
-        $redirectUrl = $this->get_return_url($order);
-        if ($this->get_option('redeem_in_store') === 'yes') {
-            $redirectUrl = $order->get_checkout_payment_url();
-        }
-
-        $params = [
-            'token'          => $token,
-            'orderNumber'    => $order->get_id(),
-            'amount'         => $order->get_total(),
-            'receiptEmail'   => $order->get_billing_email(),
-            'customerName'   => $order->get_billing_first_name().' '.$order->get_billing_last_name(),
-            'customerPhone'  => $order->get_billing_phone(),
-            'billingAddress' => $order->get_billing_address_1(),
-            'billingZipCode' => $order->get_billing_postcode(),
-            'billingCity'    => $order->get_billing_city(),
-            'billingState'   => $order->get_billing_state(),
-            'redirectUrl'    => $redirectUrl,
-            'IPNHandlerUrl'  => wc()->api_request_url('egift-ipn'),
-            'autoRedirect'   => true,
-            'autoRedeem'     => true,
-            'qrCode'         => $this->get_option('qr_code') === 'yes',
-            'version'        => getVersion(),
-        ];
-
-        return $params;
-    }
-
-    public function redeemPurchasedPin(WC_Order $order)
-    {
-        $pin = $order->get_meta(self::META_EGIFT_PIN);
-
-        if ( ! $pin) {
-            return [];
-        }
-
-        $mutation = <<<GraphQL
-        mutation (\$pin: String!){
-        pins {
-            redeem(input: {pin: \$pin})
-        }
-        }
-    GraphQL;
-
-            $egiftGateway = new WC_Gateway_EGift_Certificate();
-
-            $token = eGiftCertificate_JWT::encode(
-                [
-                    'jti'    => wp_generate_uuid4(),
-                    'iss'    => $egiftGateway->get_option('api_id'),
-                    'iat'    => (new DateTime('-2minutes'))->getTimestamp(),
-                    'exp'    => (new DateTime('+4hours'))->getTimestamp(),
-                    'ip'     => get_the_user_ip(),
-                    'agent'  => wc_get_user_agent(),
-                    'origin' => isset($_SERVER['HTTP_HOST']) ? wc_clean(wp_unslash($_SERVER['HTTP_HOST'])) : '',
-                ],
-                $egiftGateway->get_option('api_key')
-            );
-
-            $body     = json_encode(['query' => $mutation, 'variables' => ['pin' => $pin]]);
-            $response = wp_remote_post(
-                $this->apiUrl,
-                [
-                    'headers' => [
-                        'Authorization' => sprintf('Bearer %s', $token),
-                    ],
-                    'body'    => $body,
-                ]
-            );
-
-            if (isset($response['body'])) {
-                $data = @json_decode($response['body'], true);
-                if (isset($data['data']['pins']['redeem']) && $data['data']['pins']['redeem']) {
-                    // Remove cart
-                    WC()->cart->empty_cart();
-
-                    return [
-                        'result'   => 'success',
-                        'redirect' => $this->get_return_url($order),
-                    ];
-                }
-            }
-
-            return [];
     }
 
     public function ipnHandler()
     {
         $token = @file_get_contents('php://input');
 
-        if ( ! $token) {
+        if (! $token) {
             self::log('IPN received without a token in the body', 'error');
             wp_die('IPN Request Failure', 'eGiftCertificate IPN', ['response' => 500]);
         }
@@ -375,7 +305,8 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 
             //allow up to 10 cents of difference in amount
             $diff = abs($payload->amount - $order->get_total());
-            if ($payload->iss !== $this->apiID
+            if (
+                $payload->iss !== $this->apiID
                 || ! $order
                 || $diff > 0.10
             ) {
@@ -411,7 +342,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
      */
     public function init_form_fields()
     {
-        $this->form_fields = include __DIR__.DIRECTORY_SEPARATOR.'settings.php';
+        $this->form_fields = include __DIR__ . DIRECTORY_SEPARATOR . 'settings.php';
     }
 
     /**
@@ -427,7 +358,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
      */
     public function form()
     {
-        if ( ! $this->has_fields()) {
+        if (! $this->has_fields()) {
             $description = $this->get_description();
             if ($description) {
                 echo wpautop(wptexturize($description)); // @codingStandardsIgnoreLine.
@@ -440,7 +371,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         $order_id = $wp->query_vars['order-pay'];
         $order    = new WC_Order($order_id);
 
-        if ( ! $order->get_meta(self::META_EGIFT_PIN)) {
+        if (! $order->get_meta(self::META_EGIFT_PIN)) {
             echo $this->description;
 
             return;
@@ -457,7 +388,6 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         })
         </script>
         HTML;
-
         }
 
         $description = null;
@@ -467,17 +397,16 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         $description
         </p>
         HTML;
-
         }
 
         $default_fields = [
             'pin-field' => '<p class="form-row form-row-wide">
-				<label for="'.esc_attr($this->id).'-pin">'.esc_html__('eGift Certificate', 'woocommerce').'&nbsp;<span class="required">*</span></label>
-				<input value="'.$order->get_meta(self::META_EGIFT_PIN).'" id="'.esc_attr($this->id)
-                           .'-pin" required="required" style="font-size:18px" class="input-text" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="text" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" '
-                           .$this->field_name('pin').' />
-			    '.$autoRedeem.'
-			    '.$description.'
+				<label for="' . esc_attr($this->id) . '-pin">' . esc_html__('eGift Certificate', 'woocommerce') . '&nbsp;<span class="required">*</span></label>
+				<input value="' . $order->get_meta(self::META_EGIFT_PIN) . '" id="' . esc_attr($this->id)
+                . '-pin" required="required" style="font-size:18px" class="input-text" autocomplete="cc-number" autocorrect="no" autocapitalize="no" spellcheck="no" type="text" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" '
+                . $this->field_name('pin') . ' />
+			    ' . $autoRedeem . '
+			    ' . $description . '
 			    <script>
             document.getElementById("payment_method_egift-certificate").click();
         </script>
@@ -485,7 +414,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         ];
 
         $fields = wp_parse_args($fields, apply_filters('woocommerce_egift_form_fields', $default_fields, $this->id));
-        ?>
+?>
 
         <fieldset id="wc-<?php echo esc_attr($this->id); ?>-cc-form" class='wc-credit-card-form wc-payment-form'>
             <?php do_action('woocommerce_credit_card_form_start', $this->id); ?>
@@ -497,7 +426,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
             <?php do_action('woocommerce_credit_card_form_end', $this->id); ?>
             <div class="clear"></div>
         </fieldset>
-        <?php
+<?php
     }
 
     /**
@@ -519,9 +448,11 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 }
 
 
+
 add_action('woocommerce_before_main_content', 'mwire_custom_top_thankyou_notice', 5);
 
-function mwire_custom_top_thankyou_notice() {
+function mwire_custom_top_thankyou_notice()
+{
     if (!is_order_received_page()) return;
 
     $order_id = absint(get_query_var('order-received'));
@@ -539,7 +470,8 @@ function mwire_custom_top_thankyou_notice() {
 
 add_action('template_redirect', 'mwire_top_notice_render');
 
-function mwire_top_notice_render() {
+function mwire_top_notice_render()
+{
     if (!is_order_received_page()) return;
 
     $order_id = absint(get_query_var('order-received'));
