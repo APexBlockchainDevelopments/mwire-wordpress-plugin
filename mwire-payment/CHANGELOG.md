@@ -1,5 +1,6 @@
 ## 1.0.8 [2025-04-29]
 - Added $50 minimum for checkout option to appear
+- Added Customer Name to Payload to backend Database for tracking purposes.
 
 ## 1.0.7 [2025-04-29]
 - Added API authentication for call back of updating order status to "Processing"

@@ -100,24 +100,25 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
     }
 
     /*Checks if order total is over $50 - Min for moonpay */
-    public function is_available() {
-    if (!parent::is_available()) {
-        return false;
-    }
+    public function is_available()
+    {
+        if (!parent::is_available()) {
+            return false;
+        }
 
-    if (is_admin()) {
+        if (is_admin()) {
+            return true;
+        }
+
+        $minimum = 50.00;
+        $cart_total = WC()->cart ? floatval(WC()->cart->get_total('edit')) : 0;
+
+        if ($cart_total < $minimum) {
+            return false;
+        }
+
         return true;
     }
-
-    $minimum = 50.00;
-    $cart_total = WC()->cart ? floatval(WC()->cart->get_total('edit')) : 0;
-
-    if ($cart_total < $minimum) {
-        return false;
-    }
-
-    return true;
-}
 
 
     /**
@@ -164,10 +165,10 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 
             if (!is_wp_error($response)) {
                 $body = json_decode(wp_remote_retrieve_body($response), true);
-        
+
                 if (isset($body['body'])) {
                     $inner_body = json_decode($body['body'], true);
-        
+
                     if (isset($inner_body['wallet'])) {
                         $wallet = $inner_body['wallet'];
                     } else {
@@ -211,12 +212,13 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 
         // ✅ Create POST payload
         $payload = [
-            'userId'     => $order->get_billing_email(), 
-            'receiverId' => get_option('admin_email'), 
+            'userId'     => $order->get_billing_email(),
+            'receiverId' => get_option('admin_email'),
             'amount' => intval(round($order->get_total() * 100)),
             'orderId' => $order_id,
             'merchantId' => $this->get_option('merchant_id'),
-            'apiKey'     => $this->get_option('api_key'), 
+            'apiKey'     => $this->get_option('api_key'),
+            'name' => $order->get_formatted_billing_full_name(),
         ];
 
 
@@ -440,7 +442,8 @@ add_action('rest_api_init', function () {
     ]);
 });
 
-function mwire_update_order_status($request) {
+function mwire_update_order_status($request)
+{
     $params = $request->get_json_params();
     $order_id = $params['orderId'] ?? null;
     $merchant_id = $params['merchantId'] ?? '';
@@ -452,17 +455,17 @@ function mwire_update_order_status($request) {
 
     $settings = get_option('woocommerce_egift-certificate_settings');
     if (
-        $settings['merchant_id'] !== $merchant_id 
+        $settings['merchant_id'] !== $merchant_id
     ) {
         return new WP_REST_Response(['error' => 'Authentication failed'], 403);
-    } 
-    
+    }
+
     if ($admin_api_key !== $settings['admin_api_key']) {
         error_log($admin_api_key);
         error_log($settings['admin_api_key']);
         return new WP_REST_Response(['error' => 'Authentication PW failed'], 403);
     }
-    
+
 
     $order = wc_get_order($order_id);
     if (!$order) {
