@@ -6,14 +6,14 @@
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / mwire Development Team
  * @package   mwire
- * @version   1.0.6
+ * @version   1.0.8
  */
 
 /**
  * Plugin Name: mwire
  * Plugin URI: https://www.mwire.co
  * Description: Transfer Crypto with a Debit card to pay for goods or services.
- * Version: 1.0.6
+ * Version: 1.0.8
  * Author: Austin Patkos
  * Author URI: http://austinnpatkos.com
  * Requires PHP: 5.6

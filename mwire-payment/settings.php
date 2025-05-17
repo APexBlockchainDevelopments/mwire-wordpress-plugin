@@ -6,7 +6,7 @@
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / mwire Development Team
  * @package   mwire
- * @version   1.0.5
+ * @version   1.0.8
  */
 
 defined('ABSPATH') || exit;
@@ -36,6 +36,13 @@ return [
         'title' => __('API Key', 'woocommerce'),
         'type' => 'password',
         'description' => __('Get your API credentials from mwire. If you do not have these please contact info@mwire.co.', 'woocommerce'),
+        'default' => '',
+        'desc_tip' => true,
+    ],
+    'admin_api_key' => [
+        'title' => __('Admin API Key', 'woocommerce'),
+        'type' => 'password',
+        'description' => __('Allows for order updates after successful transactions on the blockchain. Get your API credentials from mwire. If you do not have these please contact info@mwire.co.', 'woocommerce'),
         'default' => '',
         'desc_tip' => true,
     ],

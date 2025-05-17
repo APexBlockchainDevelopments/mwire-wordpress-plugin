@@ -7,7 +7,7 @@
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos / mwire Development Team
  * @package   mwire
- * @version   1.0.6
+ * @version   1.0.8
  */
 
 
@@ -29,21 +29,6 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
      * @var WC_Logger
      */
     public static $log = false;
-
-    /**
-     * @var string
-     */
-    protected $eGiftPaymentUrl = 'https://egiftcert.paynup.com';
-
-    /**
-     * @var string
-     */
-    protected $eGiftWidgetScript = 'https://egiftcert-widget.paynup.com/index.js';
-
-    /**
-     * @var string
-     */
-    protected $apiUrl = 'https://api.paynup.com';
 
     /**
      * @var bool
@@ -74,18 +59,6 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
             'products',
         ];
 
-        if (defined('EGIFT_PAYMENT_URL')) {
-            $this->eGiftPaymentUrl = EGIFT_PAYMENT_URL;
-        }
-
-        if (defined('PAYNUP_API_URL')) {
-            $this->apiUrl = PAYNUP_API_URL;
-        }
-
-        if (defined('EGIFT_WIDGET_SCRIPT')) {
-            $this->eGiftWidgetScript = EGIFT_WIDGET_SCRIPT;
-        }
-
         // Load the settings.
         $this->init_form_fields();
         $this->init_settings();
@@ -99,13 +72,12 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         }
 
         $this->debug  = 'yes' === $this->get_option('debug', 'no');
-        $this->apiID  = 'test'; //Just a test while remove it from the settings;
-        $this->apiKey = $this->get_option('api_key');
+        $this->apiID  = $this->get_option('api_key');
+        $this->apiKey = $this->get_option('admin_api_key');
 
         self::$log_enabled = $this->debug;
 
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'process_admin_options']);
-        add_action('woocommerce_api_egift-ipn', [$this, 'ipnHandler']);
 
         add_filter(
             'woocommerce_order_details_after_order_table_items',
@@ -126,6 +98,27 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
             }
         );
     }
+
+    /*Checks if order total is over $50 - Min for moonpay */
+    public function is_available() {
+    if (!parent::is_available()) {
+        return false;
+    }
+
+    if (is_admin()) {
+        return true;
+    }
+
+    $minimum = 50.00;
+    $cart_total = WC()->cart ? floatval(WC()->cart->get_total('edit')) : 0;
+
+    if ($cart_total < $minimum) {
+        return false;
+    }
+
+    return true;
+}
+
 
     /**
      * Processes and saves options.
@@ -218,13 +211,14 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 
         // ✅ Create POST payload
         $payload = [
-            'userId'     => $order->get_billing_email(), // You can modify this as needed
-            'receiverId' => get_option('admin_email'), // or some custom field
-            'amount'     => intval($order->get_total()), // e.g., convert $25.00 to 2500
+            'userId'     => $order->get_billing_email(), 
+            'receiverId' => get_option('admin_email'), 
+            'amount' => intval(round($order->get_total() * 100)),
             'orderId' => $order_id,
             'merchantId' => $this->get_option('merchant_id'),
-            'apiKey'     => $this->get_option('api_key'), // <-- NEW: add api_key here
+            'apiKey'     => $this->get_option('api_key'), 
         ];
+
 
         // ✅ Send POST request
         $response = wp_remote_post('https://api.mwire.co/prod/create-new-agreement-from-merchant', [
@@ -273,7 +267,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         $order->update_status('on-hold', 'Please Check your email for further instructions.');
 
         // Reduce stock levels
-        wc_reduce_stock_levels($order->get_id());
+        wc_reduce_stock_levels($order->get_id()); //Is this needed?
 
         // Remove cart contents
         WC()->cart->empty_cart();
@@ -281,60 +275,6 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
             'result'   => 'success',
             'redirect' => $redirectUrl,
         ];
-    }
-
-    public function ipnHandler()
-    {
-        $token = @file_get_contents('php://input');
-
-        if (! $token) {
-            self::log('IPN received without a token in the body', 'error');
-            wp_die('IPN Request Failure', 'eGiftCertificate IPN', ['response' => 500]);
-        }
-
-        try {
-            $payload = eGiftCertificate_JWT::decode($token, $this->apiKey, ['HS256']);
-        } catch (\Exception $exception) {
-            self::log('IPN received with invalid token', 'error');
-            wp_die($exception->getMessage(), 'eGiftCertificate IPN', ['response' => 500]);
-            exit;
-        }
-
-        if (isset($payload, $payload->orderNumber)) {
-            $order = wc_get_order($payload->orderNumber);
-
-            //allow up to 10 cents of difference in amount
-            $diff = abs($payload->amount - $order->get_total());
-            if (
-                $payload->iss !== $this->apiID
-                || ! $order
-                || $diff > 0.10
-            ) {
-                self::log('IPN received with invalid token content, invalid order or amount', 'error');
-                wp_die('IPN does not match with any existent order', 'eGiftCertificate IPN', ['response' => 500]);
-                exit;
-            }
-
-            if ($payload->status === 'SOLD') {
-                self::log('IPN received with SOLD status of eGiftCertificate');
-                $order->add_order_note(sprintf('eGiftCertificate obtained: %s', $payload->pin));
-                $order->add_meta_data(self::META_EGIFT_PIN, $payload->pin);
-                $order->save_meta_data();
-                header('Status: 200 OK');
-                exit;
-            }
-
-            if ($payload->status === 'USED' && $order->get_meta(self::META_EGIFT_PIN) === $payload->pin) {
-                self::log('IPN received with USED status of eGiftCertificate');
-                $order->add_order_note('eGiftCertificate validated & redeemed successfully');
-                $order->payment_complete($payload->pin);
-                header('Status: 200 OK');
-                exit;
-            }
-        } else {
-            self::log('IPN received with invalid payload');
-            wp_die('Invalid IPN Payload', 'eGiftCertificate IPN', ['response' => 500]);
-        }
     }
 
     /**
@@ -348,7 +288,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
     /**
      * @return bool
      */
-    public function has_fields()
+    public function has_fields()   //@dev is this necessary?
     {
         return is_checkout() && is_wc_endpoint_url('order-pay');
     }
@@ -356,7 +296,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
     /**
      * Frontend Form for PIN Redemption
      */
-    public function form()
+    public function form() //@dev is this necessary?
     {
         if (! $this->has_fields()) {
             $description = $this->get_description();
@@ -461,9 +401,10 @@ function mwire_custom_top_thankyou_notice()
     $order = wc_get_order($order_id);
     if (!$order || $order->get_payment_method() !== 'egift-certificate') return;
 
-    echo '<div class="woocommerce-notice woocommerce-info" style="font-size: 1.15em; background: #fff3cd; border-left: 4px solid #ffeeba; padding: 16px; margin: 20px 0;">
-        ⚠️ <strong>Your order is not yet complete.</strong><br>
-        Please check your email inbox for further instructions to complete your payment.
+    echo '<div class="woocommerce-notice woocommerce-info" style="font-size: 1.15em; background: #fff3cd; border-left: 4px solid #ffeeba; padding: 16px; margin: 20px 0; text-align: center;"">
+        ⚠️ <strong><h2>YOU’RE NOT FINISHED!</h2></strong><br>
+            <strong><h3>Please check your email, and click the provided link to complete your purchase.</h3></strong>
+            <h3>Please check your spam/junk folder if you did not receive it.</h3>
     </div>';
 }
 
@@ -481,9 +422,53 @@ function mwire_top_notice_render()
     if (!$order || $order->get_payment_method() !== 'egift-certificate') return;
 
     add_action('wp_body_open', function () {
-        echo '<div class="woocommerce-notice woocommerce-info" style="font-size: 1.15em; background: #fff3cd; border-left: 4px solid #ffeeba; padding: 16px; margin: 20px;">
-            ⚠️ <strong>Your order is not yet complete.</strong><br>
-            Please check your email inbox for further instructions to complete your payment.
+        echo '<div class="woocommerce-notice woocommerce-info" style="font-size: 1.15em; background: #fff3cd; border-left: 4px solid #ffeeba; padding: 16px; margin: 20px; text-align: center;">
+        ⚠️ <strong><h2>YOU’RE NOT FINISHED!</h2></strong><br>
+            <strong><h3>Please check your email, and click the provided link to complete your purchase.</h3></strong>
+            <h3>Please check your spam/junk folder if you did not receive it.</h3>
         </div>';
     }, 0);
+}
+
+
+// Expose a custom REST endpoint to update order status from backend
+add_action('rest_api_init', function () {
+    register_rest_route('mwire/v1', '/update-order-status', [
+        'methods' => 'POST',
+        'callback' => 'mwire_update_order_status',
+        'permission_callback' => '__return_true', // Replace with authentication as needed
+    ]);
+});
+
+function mwire_update_order_status($request) {
+    $params = $request->get_json_params();
+    $order_id = $params['orderId'] ?? null;
+    $merchant_id = $params['merchantId'] ?? '';
+    $admin_api_key = $params['adminApiKey'] ?? '';
+
+    if (!$order_id || !$merchant_id || !$admin_api_key) {
+        return new WP_REST_Response(['error' => 'Missing parameters'], 400);
+    }
+
+    $settings = get_option('woocommerce_egift-certificate_settings');
+    if (
+        $settings['merchant_id'] !== $merchant_id 
+    ) {
+        return new WP_REST_Response(['error' => 'Authentication failed'], 403);
+    } 
+    
+    if ($admin_api_key !== $settings['admin_api_key']) {
+        error_log($admin_api_key);
+        error_log($settings['admin_api_key']);
+        return new WP_REST_Response(['error' => 'Authentication PW failed'], 403);
+    }
+    
+
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        return new WP_REST_Response(['error' => 'Order not found'], 404);
+    }
+
+    $order->update_status('processing', 'Payment received from backend confirmation');
+    return new WP_REST_Response(['message' => 'Order updated'], 200);
 }
