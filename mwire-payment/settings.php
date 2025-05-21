@@ -4,7 +4,7 @@
  *  file 'LICENSE', which is part of this source code package.
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
- * @author    Austin Patkos / mwire Development Team
+ * @author    Austin Patkos
  * @package   mwire
  * @version   1.0.8
  */
