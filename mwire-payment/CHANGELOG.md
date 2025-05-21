@@ -15,7 +15,7 @@
 - Removed "credit" terminology. 
 
 ## 1.0.4 [2025-04-23]
-- Updated Name of Plugin to just 'mwire'
+- Updated Name of Plugin to just ''
 
 ## 0.0.2 [2025-04-12]
 
