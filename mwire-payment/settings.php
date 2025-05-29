@@ -25,8 +25,8 @@ return [
         'default' => 'no',
         'description' => sprintf(__('Log events. We recommend using this for debugging purposes only and deleting the logs when finished.', 'woocommerce'), '<code>'.WC_Log_Handler_File::get_log_file_path('egift-certificate').'</code>'),
     ],
-    'merchant_id' => [
-        'title' => __('Merchant ID', 'woocommerce'),
+    'receiver_id' => [
+        'title' => __('Receiver Id', 'woocommerce'),
         'type' => 'text',
         'description' => __('Enter or copy your merchant ID. If you do not have these please contact info@mwire.co.', 'woocommerce'),
         'default' => '',

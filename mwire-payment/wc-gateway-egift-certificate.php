@@ -147,17 +147,19 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
 
         $wallet = 'No wallet assigned yet.';
 
-        $merchant_id = $this->get_option('merchant_id');
+        $receiver_id = $this->get_option('receiver_id');
         $api_key = $this->get_option('api_key');
 
-        if ($merchant_id && $api_key) {
+        error_log($receiver_id);
+
+        if ($receiver_id && $api_key) {
             $response = wp_remote_post('https://api.mwire.co/prod/return-merchant-wallet-address', [
                 'method'    => 'POST',
                 'headers'   => [
                     'Content-Type' => 'application/json',
                 ],
                 'body'      => json_encode([
-                    'merchant_id' => $merchant_id,
+                    'receiver_id' => $receiver_id,
                     'api_key'     => $api_key,
                 ]),
                 'timeout'   => 15,
@@ -181,7 +183,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
                 error_log('❌ Failed to reach wallet API: ' . $response->get_error_message());
             }
         } else {
-            error_log('❌ Missing merchant_id or api_key in settings.');
+            error_log('❌ Missing receiver_id or api_key in settings.');
         }
 
         echo '<h2>Wallet Address</h2>';
@@ -210,17 +212,21 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         /** @var WC_Order $order */
         $order = wc_get_order($order_id);
 
+        $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http");
+        $current_url .= "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+
+        $receiver_id = $this->get_option('receiver_id');
+
         // ✅ Create POST payload
         $payload = [
             'userId'     => $order->get_billing_email(),
-            'receiverId' => get_option('admin_email'),
+            'receiverId' => $receiver_id,
             'amount' => intval(round($order->get_total() * 100)),
             'orderId' => $order_id,
-            'merchantId' => $this->get_option('merchant_id'),
             'apiKey'     => $this->get_option('api_key'),
             'name' => $order->get_formatted_billing_full_name(),
+            'invokedUrl' => $current_url,
         ];
-
 
         // ✅ Send POST request
         $response = wp_remote_post('https://api.mwire.co/prod/create-new-agreement-from-merchant', [
