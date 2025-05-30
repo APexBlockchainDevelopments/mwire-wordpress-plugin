@@ -452,16 +452,16 @@ function mwire_update_order_status($request)
 {
     $params = $request->get_json_params();
     $order_id = $params['orderId'] ?? null;
-    $merchant_id = $params['merchantId'] ?? '';
+    $receiver_id = $params['receiverId'] ?? '';
     $admin_api_key = $params['adminApiKey'] ?? '';
 
-    if (!$order_id || !$merchant_id || !$admin_api_key) {
+    if (!$order_id || !$receiver_id || !$admin_api_key) {
         return new WP_REST_Response(['error' => 'Missing parameters'], 400);
     }
 
     $settings = get_option('woocommerce_egift-certificate_settings');
     if (
-        $settings['merchant_id'] !== $merchant_id
+        $settings['receiver_id'] !== $receiver_id
     ) {
         return new WP_REST_Response(['error' => 'Authentication failed'], 403);
     }
