@@ -110,12 +110,12 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
             return true;
         }
 
-        $minimum = 50.00;
-        $cart_total = WC()->cart ? floatval(WC()->cart->get_total('edit')) : 0;
+        // $minimum = 50.00;  //Hold over func for min order. Can remove in future
+        // $cart_total = WC()->cart ? floatval(WC()->cart->get_total('edit')) : 0;
 
-        if ($cart_total < $minimum) {
-            return false;
-        }
+        // if ($cart_total < $minimum) {
+        //     return false;
+        // }
 
         return true;
     }
