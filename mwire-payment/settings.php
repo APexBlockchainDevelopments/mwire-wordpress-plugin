@@ -5,8 +5,8 @@
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos
- * @package   mwire
- * @version   1.0.8
+ * @package   mWire
+ * @version   1.0.9
  */
 
 defined('ABSPATH') || exit;
@@ -15,7 +15,7 @@ return [
     'enabled' => [
         'title' => __('Enable/Disable', 'woocommerce'),
         'type' => 'checkbox',
-        'label' => __('Enable mwire', 'woocommerce'),
+        'label' => __('Enable mWire', 'woocommerce'),
         'default' => 'yes',
     ],
     'debug' => [
@@ -35,16 +35,15 @@ return [
     'api_key' => [
         'title' => __('API Key', 'woocommerce'),
         'type' => 'password',
-        'description' => __('Get your API credentials from mwire. If you do not have these please contact info@mwire.co.', 'woocommerce'),
+        'description' => __('Get your API credentials from mWire. If you do not have these please contact info@mwire.co.', 'woocommerce'),
         'default' => '',
         'desc_tip' => true,
     ],
     'admin_api_key' => [
         'title' => __('Admin API Key', 'woocommerce'),
         'type' => 'password',
-        'description' => __('Allows for order updates after successful transactions on the blockchain. Get your API credentials from mwire. If you do not have these please contact info@mwire.co.', 'woocommerce'),
+        'description' => __('Allows for order updates after successful transactions on the blockchain. Get your API credentials from mWire. If you do not have these please contact info@mwire.co.', 'woocommerce'),
         'default' => '',
         'desc_tip' => true,
     ],
-
 ];

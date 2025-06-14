@@ -1,3 +1,7 @@
+## 1.0.8 [2025-06-14]
+- Removed $50 minimum for checkout option to appear
+- Added Test API connection button in settings
+
 ## 1.0.8 [2025-04-29]
 - Added $50 minimum for checkout option to appear
 - Added Customer Name to Payload to backend Database for tracking purposes.
@@ -15,7 +19,7 @@
 - Removed "credit" terminology. 
 
 ## 1.0.4 [2025-04-23]
-- Updated Name of Plugin to just ''
+- Updated Name of Plugin to just 'mwire'
 
 ## 0.0.2 [2025-04-12]
 

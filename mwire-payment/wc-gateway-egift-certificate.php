@@ -6,8 +6,8 @@
  *
  * @copyright 2025 Copyright(c) - All rights reserved.
  * @author    Austin Patkos
- * @package   mwire
- * @version   1.0.8
+ * @package   mWire
+ * @version   1.0.9
  */
 
 
@@ -53,8 +53,8 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         $this->id                 = 'egift-certificate';
         $this->has_fields         = true;
         $this->order_button_text  = __('continue', 'woocommerce');
-        $this->method_title       = __('mwire', 'woocommerce');
-        $this->method_description = __('Use mwire to interchange for goods', 'woocommerce');
+        $this->method_title       = __('mWire', 'woocommerce');
+        $this->method_description = __('Use mWire to interchange for goods', 'woocommerce');
         $this->supports           = [
             'products',
         ];
@@ -146,11 +146,48 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
         parent::admin_options();
 
         $wallet = 'No wallet assigned yet.';
-
         $receiver_id = $this->get_option('receiver_id');
         $api_key = $this->get_option('api_key');
 
-        error_log($receiver_id);
+        if (isset($_POST['mwire_test_api'])) {
+            $admin_api_key = $this->get_option('admin_api_key');
+
+            $response = wp_remote_post('https://wgksndxt75.execute-api.us-east-1.amazonaws.com/prod/verify-premium-receiver-api-connection', [
+                'headers' => ['Content-Type' => 'application/json'],
+                'body' => json_encode([
+                    'receiverId' => $receiver_id,
+                    'api_key' => $api_key,
+                    'admin_api_key' => $admin_api_key,
+                ]),
+                'timeout' => 15,
+            ]);
+
+            if (!is_wp_error($response)) {
+                $raw_body = wp_remote_retrieve_body($response);
+                $outer = json_decode($raw_body, true);
+                error_log("API Response");
+                error_log(json_encode($outer, JSON_PRETTY_PRINT));
+                $inner = json_decode($outer['body'], true);
+                
+                if (!empty($inner['message']) && $inner['message'] === 'Authentication successful') {
+                    echo '<div class="notice notice-success"><p>✅ API Connection successful!</p></div>';
+                } else {
+                    $msg = esc_html($inner['error'] ?? 'Invalid response');
+                    echo "<div class='notice notice-error'><p>❌ API Connection failed: {$msg}</p></div>";
+                }
+            } else {
+                echo '<div class="notice notice-error"><p>❌ Error: ' . esc_html($response->get_error_message()) . '</p></div>';
+            }
+        }
+
+        echo '<table class="form-table">';
+        echo '<tr valign="top">
+            <th scope="row">Test API Connection</th>
+            <td>
+                <input type="submit" name="mwire_test_api" class="button button-secondary" value="Test API Connection">
+            </td>
+          </tr>';
+        echo '</table>';
 
         if ($receiver_id && $api_key) {
             $response = wp_remote_post('https://api.mwire.co/prod/return-merchant-wallet-address', [
@@ -194,7 +231,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
                     <p style="font-family:monospace; background: #f9f9f9; padding:10px; border:1px solid #ccc;">'
             . esc_html($wallet) .
             '</p>
-                    <p class="description">This wallet is assigned by mwire. If you need changes, contact info@mwire.co</p>
+                    <p class="description">This wallet is assigned by web3Auth. If you have questions contact info@mwire.co</p>
                 </td>
               </tr>';
         echo '</table>';
@@ -374,7 +411,7 @@ class WC_Gateway_EGift_Certificate extends WC_Payment_Gateway_CC
             <?php do_action('woocommerce_credit_card_form_end', $this->id); ?>
             <div class="clear"></div>
         </fieldset>
-<?php
+    <?php
     }
 
     /**
@@ -480,4 +517,50 @@ function mwire_update_order_status($request)
 
     $order->update_status('processing', 'Payment received from backend confirmation');
     return new WP_REST_Response(['message' => 'Order updated'], 200);
+}
+
+
+
+
+function mwire_render_test_api_button()
+{
+    ?>
+    <tr valign="top">
+        <th scope="row">API Connection</th>
+        <td>
+            <button id="test-api-connection" class="button button-secondary">Test API Connection</button>
+            <span id="api-test-result" style="margin-left:10px;"></span>
+        </td>
+    </tr>
+    <script type="module">
+        document.addEventListener("DOMContentLoaded", () => {
+            const button = document.getElementById("test-api-connection");
+            const result = document.getElementById("api-test-result");
+
+            button?.addEventListener("click", async () => {
+                result.textContent = "Testing...";
+                try {
+                    const response = await fetch(ajaxurl, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded",
+                        },
+                        body: new URLSearchParams({
+                            action: "test_api_connection",
+                        }),
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        result.textContent = "✅ Connected";
+                    } else {
+                        result.textContent = "❌ Failed: " + (data.data || "Unknown error");
+                    }
+                } catch (err) {
+                    result.textContent = "❌ Error during request";
+                }
+            });
+        });
+    </script>
+<?php
 }

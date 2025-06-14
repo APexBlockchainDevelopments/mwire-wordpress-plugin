@@ -1,4 +1,4 @@
-# mwire Crypto Payments
+# mWire Crypto Payments
 
 
 ## Requirements
